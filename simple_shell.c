@@ -33,6 +33,7 @@ int main(void)
 		strcpy(args, buf);
 		args[strlen(args) - 1] = '\0';
 		execlp(args, args, (char *)NULL);
+		printf("./hsh: No such file or directory\n");
 		return (0);
 	}
 	else if (pid < 0)
