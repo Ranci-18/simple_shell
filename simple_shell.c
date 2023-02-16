@@ -15,8 +15,8 @@ int main(void)
 {
 	char buf[BUFSIZE];
 	pid_t pid;
-	char args[BUFSIZE];
-	int status;
+	char *args[BUFSIZE], *token;
+	int status, i = 0;
 
 	while (1)
 	{
@@ -27,13 +27,24 @@ int main(void)
 		printf("\n");
 		return (0);
 	}
+	token = strtok(buf, " \n");
+	if (token == NULL)
+	{
+		continue;
+	}
+	while (token != NULL)
+	{
+		args[i] = token;
+		i++;
+		token = strtok(NULL, " \n");
+	}
+	args[i] = NULL;
+
 	pid = fork();
 	if (pid == 0)
 	{
-		strcpy(args, buf);
-		args[strlen(args) - 1] = '\0';
-		execlp(args, args, (char *)NULL);
-		printf("./hsh: No such file or directory\n");
+		execvp(args[0], args);
+		printf("./hsh: %s: command not found\n", args[0]);
 		return (0);
 	}
 	else if (pid < 0)
