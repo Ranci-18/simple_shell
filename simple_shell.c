@@ -3,32 +3,36 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <string.h>
 #define BUFSIZE 100
 /**
+ *main - emulates a simple shell
  *
  *
- *
- *
+ *Return: nothing
  */
-int main()
+int main(void)
 {
 	char buf[BUFSIZE];
+	pid_t pid;
+	char args[BUFSIZE];
+	int status;
 
 	while (1)
 	{
-		print("($) ");
+		printf("($) ");
 
 	if (fgets(buf, BUFSIZE, stdin) == NULL)
 	{
 		printf("\n");
 		return (0);
 	}
-	pid_t pid = fork();
+	pid = fork();
 	if (pid == 0)
 	{
-		char *args[] = {buf, NULL};
-		execvp(buf, args);
-		printf("Error: command not found\n");
+		strcpy(args, buf);
+		args[strlen(args) - 1] = '\0';
+		execlp(args, args, (char *)NULL);
 		return (0);
 	}
 	else if (pid < 0)
@@ -37,7 +41,6 @@ int main()
 	}
 	else
 	{
-		int status;
 		wait(&status);
 	}
 	}
