@@ -26,6 +26,9 @@ int main(void)
 			printf("\n");
 			return (0);
 		}
+		if (strcmp(buf, "exit\n") == 0)
+			return (0);
+		
 		exists = 0;
 		token = strtok(buf, " \n");
 		if (token == NULL)
@@ -84,11 +87,7 @@ int main(void)
 		}
 		else
 		{
-			do
-			{
-				waitpid(pid, &status, WUNTRACED);
-			}
-			while (!WIFEXITED(status) && !WIFSIGNALED(status));
+			wait(&status);
 		}
 	}
 	return (0);
