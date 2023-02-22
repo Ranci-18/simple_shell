@@ -1,65 +1,155 @@
 #include "shell.h"
-/**
- * length - checks string length
- * @str: string
- * Return: str
- */
-
-char *length(char *str)
-{
-	int i;
-
-	for (i = 0; str[i] != '='; i++)
-		;
-	return (str + i + 1);
-}
 
 /**
- * compare - compares two strings
- * @varname: first string
- * @dirname: second string
- * Return: 1
+ * exitt - exits the shell with or without a return of status n
+ * @arv: array of words of the entered line
  */
-
-int compare(char *varname, char *dirname)
+void exitt(char **arv)
 {
-	int i;
+	int i, n;
 
-	for (i = 0; dirname[i] != '\0'; i++)
+	if (arv[1])
 	{
-		if (dirname[i] != varname[i])
-			return (0);
+		n = _atoi(arv[1]);
+		if (n <= -1)
+			n = 2;
+		freearv(arv);
+		exit(n);
 	}
-	return (1);
+	for (i = 0; arv[i]; i++)
+		free(arv[i]);
+	free(arv);
+	exit(0);
 }
 
 /**
- * _getenv - gets path in env
- * @environ: global var
- * @dirname: pointer to dirname
- * Return: final or null
+ * _atoi - converts a string into an integer
+ *@s: pointer to a string
+ *Return: the integer
  */
-
-char *_getenv(char **environ, char *dirname)
+int _atoi(char *s)
 {
-	int k, j;
-	char *varname, *final;
+	int i, integer, sign = 1;
 
-	for (j = 0; environ[j]; j++)
+	i = 0;
+	integer = 0;
+	while (!((s[i] >= '0') && (s[i] <= '9')) && (s[i] != '\0'))
 	{
-		varname = malloc(1024);
-
-		for (k = 0; environ[j][k] != '='; k++)
-			varname[k] = environ[j][k];
-
-		if (compare(varname, dirname))
+		if (s[i] == '-')
 		{
-			final = length(environ[j]);
-			free(varname);
-			return (final);
-
+			sign = sign * (-1);
 		}
-		free(varname);
+		i++;
 	}
-	return (NULL);
+	while ((s[i] >= '0') && (s[i] <= '9'))
+	{
+		integer = (integer * 10) + (sign * (s[i] - '0'));
+		i++;
+	}
+	return (integer);
+}
+
+/**
+ * env - prints the current environment
+ * @arv: array of arguments
+ */
+void env(char **arv __attribute__ ((unused)))
+{
+
+	int i;
+
+	for (i = 0; environ[i]; i++)
+	{
+		_puts(environ[i]);
+		_puts("\n");
+	}
+
+}
+
+/**
+ * _setenv - Initialize a new environment variable, or modify an existing one
+ * @arv: array of entered words
+ */
+void _setenv(char **arv)
+{
+	int i, j, k;
+
+	if (!arv[1] || !arv[2])
+	{
+		perror(_getenv("_"));
+		return;
+	}
+
+	for (i = 0; environ[i]; i++)
+	{
+		j = 0;
+		if (arv[1][j] == environ[i][j])
+		{
+			while (arv[1][j])
+			{
+				if (arv[1][j] != environ[i][j])
+					break;
+
+				j++;
+			}
+			if (arv[1][j] == '\0')
+			{
+				k = 0;
+				while (arv[2][k])
+				{
+					environ[i][j + 1 + k] = arv[2][k];
+					k++;
+				}
+				environ[i][j + 1 + k] = '\0';
+				return;
+			}
+		}
+	}
+	if (!environ[i])
+	{
+
+		environ[i] = concat_all(arv[1], "=", arv[2]);
+		environ[i + 1] = '\0';
+
+	}
+}
+
+/**
+ * _unsetenv - Remove an environment variable
+ * @arv: array of entered words
+ */
+void _unsetenv(char **arv)
+{
+	int i, j;
+
+	if (!arv[1])
+	{
+		perror(_getenv("_"));
+		return;
+	}
+	for (i = 0; environ[i]; i++)
+	{
+		j = 0;
+		if (arv[1][j] == environ[i][j])
+		{
+			while (arv[1][j])
+			{
+				if (arv[1][j] != environ[i][j])
+					break;
+
+				j++;
+			}
+			if (arv[1][j] == '\0')
+			{
+				free(environ[i]);
+				environ[i] = environ[i + 1];
+				while (environ[i])
+				{
+					environ[i] = environ[i + 1];
+					i++;
+				}
+				return;
+			}
+		}
+	}
 }

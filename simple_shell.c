@@ -1,157 +1,89 @@
 #include "shell.h"
+
 /**
- *print_prompt - prints prompt
- *
- *
- * 
- *Return: nothing
+ * sig_handler - checks if Ctrl C is pressed
+ * @sig_num: int
  */
-void print_prompt(void)
+void sig_handler(int sig_num)
 {
-	static int first_time = 1;
-	const char *CLEAR_SCREEN_ANSI;
-
-	if (first_time)
+	if (sig_num == SIGINT)
 	{
-		CLEAR_SCREEN_ANSI = "\x1b[1;1H\x1b[2J";
-		write(STDOUT_FILENO, CLEAR_SCREEN_ANSI, 11);
-		first_time = 0;
+		_puts("\n#cisfun$ ");
 	}
-
-	printf(":) ");
 }
+
 /**
- *read_input - reads input string/command
- *
- *
- *
- *
- *Return: pointer to the command
+* _EOF - handles the End of File
+* @len: return value of getline function
+* @buff: buffer
  */
-char *read_input(void)
+void _EOF(int len, char *buff)
 {
-	char *buf = NULL;
-	size_t bufsize = 0;
-	int c = 0;
-
-	if (getline(&buf, &bufsize, stdin) == -1)
+	(void)buff;
+	if (len == -1)
 	{
-		free(buf);
-		exit(-1);
-	}
-	c = strlen(buf);
-	buf[c - 1] = '\0';
-	
-	return (buf);
-}
-/**
- *mrealloc - reallocates memory
- *@p: pointer
- *@prev_size: int
- *@new_size: int
- *
- *
- *Return: null
- */
-void *mrealloc(void *p, unsigned int prev_size, unsigned int new_size)
-{
-	char *n;
-	size_t i;
-
-	if (p == NULL)
-	{
-		n = malloc(new_size);
-		return (n);
-	}
-
-	if (new_size == 0 && p != NULL)
-	{
-		free(p);
-		return (NULL);
-	}
-	
-	if (new_size == prev_size)
-	{
-		return (p);
-	}
-	n = malloc(new_size);
-
-	if (n == NULL)
-		return (NULL);
-	for (i = 0; i < prev_size; i++)
-	{
-		n[i] = ((char *)p)[i];
-	}
-	free (p);
-
-	return (n);
-}
-/**
- *tokenize - splits command line arguments into tokens
- *@input: command line input
- *@delimeter: separator
- *
- *
- *Return: pointer
- */
-char **tokenize(char *input, char *delimeter)
-{
-	char **token;
-	int buf = 1024, i = 0;
-
-	token = malloc(sizeof(char *) * buf);
-	if (token == NULL)
-	{
-		exit(99);
-	}
-	token[i] = strtok(input, delimeter);
-	i++;
-	while (1)
-	{
-		token[i] = strtok(NULL, delimeter);
-		if (i >= buf)
+		if (isatty(STDIN_FILENO))
 		{
-			buf += buf;
-			token = mrealloc(token, buf, buf * (sizeof(char *)));
-			if(token == NULL)
+			_puts("\n");
+			free(buff);
+		}
+		exit(0);
+	}
+}
+/**
+  * _isatty - verif if terminal
+  */
+
+void _isatty(void)
+{
+	if (isatty(STDIN_FILENO))
+		_puts("#cisfun$ ");
+}
+/**
+ * main - Shell
+ * Return: 0 on success
+ */
+
+int main(void)
+{
+	ssize_t len = 0;
+	char *buff = NULL, *value, *pathname, **arv;
+	size_t size = 0;
+	list_path *head = '\0';
+	void (*f)(char **);
+
+	signal(SIGINT, sig_handler);
+	while (len != EOF)
+	{
+		_isatty();
+		len = getline(&buff, &size, stdin);
+		_EOF(len, buff);
+		arv = splitstring(buff, " \n");
+		if (!arv || !arv[0])
+			execute(arv);
+		else
+		{
+			value = _getenv("PATH");
+			head = linkpath(value);
+			pathname = _which(arv[0], head);
+			f = checkbuild(arv);
+			if (f)
 			{
-				exit(98);
+				free(buff);
+				f(arv);
+			}
+			else if (!pathname)
+				execute(arv);
+			else if (pathname)
+			{
+				free(arv[0]);
+				arv[0] = pathname;
+				execute(arv);
 			}
 		}
-		if (token[i] == NULL)
-			break;
-		i++;
 	}
-	return (token);
-}
-/**
- *main - entry point, emulates shimple shell
- *
- *
- *
- *
- *Return: nothing
- */
-int main(int argc, char **argv, char **env)
-{
-	char *input = NULL, *delimeter = "\t \a\n", *command, **token;
-	(void)argc;
-	
-	token = env_path(env);
-	signal(SIGINT, SIG_IGN);
-	while (1)
-	{
-		print_prompt();
-		input = read_input();
-		argv = tokenize(input, delimeter);
-		command = get_command_path(argv, token);
-		if (command == NULL)
-		{
-			execute(argv);
-		}
-		free(input);
-		free(argv);
-		free(command);
-	}
+	free_list(head);
+	freearv(arv);
+	free(buff);
 	return (0);
 }
