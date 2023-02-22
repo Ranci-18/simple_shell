@@ -1,111 +1,157 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-#include <string.h>
-#include <limits.h>
-#define BUFSIZE 100
+#include "shell.h"
 /**
- *main - emulates a simple shell
+ *print_prompt - prints prompt
+ *
+ *
+ * 
+ *Return: nothing
+ */
+void print_prompt(void)
+{
+	static int first_time = 1;
+	const char *CLEAR_SCREEN_ANSI;
+
+	if (first_time)
+	{
+		CLEAR_SCREEN_ANSI = "\x1b[1;1H\x1b[2J";
+		write(STDOUT_FILENO, CLEAR_SCREEN_ANSI, 11);
+		first_time = 0;
+	}
+
+	printf(":) ");
+}
+/**
+ *read_input - reads input string/command
+ *
+ *
+ *
+ *
+ *Return: pointer to the command
+ */
+char *read_input(void)
+{
+	char *buf = NULL;
+	size_t bufsize = 0;
+	int c = 0;
+
+	if (getline(&buf, &bufsize, stdin) == -1)
+	{
+		free(buf);
+		exit(-1);
+	}
+	c = strlen(buf);
+	buf[c - 1] = '\0';
+	
+	return (buf);
+}
+/**
+ *mrealloc - reallocates memory
+ *@p: pointer
+ *@prev_size: int
+ *@new_size: int
+ *
+ *
+ *Return: null
+ */
+void *mrealloc(void *p, unsigned int prev_size, unsigned int new_size)
+{
+	char *n;
+	size_t i;
+
+	if (p == NULL)
+	{
+		n = malloc(new_size);
+		return (n);
+	}
+
+	if (new_size == 0 && p != NULL)
+	{
+		free(p);
+		return (NULL);
+	}
+	
+	if (new_size == prev_size)
+	{
+		return (p);
+	}
+	n = malloc(new_size);
+
+	if (n == NULL)
+		return (NULL);
+	for (i = 0; i < prev_size; i++)
+	{
+		n[i] = ((char *)p)[i];
+	}
+	free (p);
+
+	return (n);
+}
+/**
+ *tokenize - splits command line arguments into tokens
+ *@input: command line input
+ *@delimeter: separator
+ *
+ *
+ *Return: pointer
+ */
+char **tokenize(char *input, char *delimeter)
+{
+	char **token;
+	int buf = 1024, i = 0;
+
+	token = malloc(sizeof(char *) * buf);
+	if (token == NULL)
+	{
+		exit(99);
+	}
+	token[i] = strtok(input, delimeter);
+	i++;
+	while (1)
+	{
+		token[i] = strtok(NULL, delimeter);
+		if (i >= buf)
+		{
+			buf += buf;
+			token = mrealloc(token, buf, buf * (sizeof(char *)));
+			if(token == NULL)
+			{
+				exit(98);
+			}
+		}
+		if (token[i] == NULL)
+			break;
+		i++;
+	}
+	return (token);
+}
+/**
+ *main - entry point, emulates shimple shell
+ *
+ *
  *
  *
  *Return: nothing
  */
-int main(void)
+int main(int argc, char **argv, char **env)
 {
-	char *buf = NULL, *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL }, cwd[PATH_MAX];
-	pid_t pid;
-	int status, exists, i, j;
-	size_t bufsize = 0;
-
-	setenv("PATH", "/bin:/usr/bin", 1);
+	char *input = NULL, *delimeter = "\t \a\n", *command, **token;
+	(void)argc;
+	
+	token = env_path(env);
+	signal(SIGINT, SIG_IGN);
 	while (1)
 	{
-		if (getcwd(cwd, sizeof(cwd)) == NULL)
+		print_prompt();
+		input = read_input();
+		argv = tokenize(input, delimeter);
+		command = get_command_path(argv, token);
+		if (command == NULL)
 		{
-			perror("getcwd() error");
-			return (1);
+			execute(argv);
 		}
-		printf(":) ");
-		if (getline(&buf, &bufsize, stdin) == -1)
-		{
-			printf("\n");
-			return (0);
-		}
-		if (strcmp(buf, "exit\n") == 0)
-			return (0);
-		
-		exists = 0;
-		token = strtok(buf, " \n");
-		if (token == NULL)
-		{
-			continue;
-		}
-		i = 0;
-		while (token != NULL)
-		{
-			args[i] = malloc(strlen(token) + 1);
-			strcpy(args[i], token);
-			i++;
-			token = strtok(NULL, " \n");
-		}
-		args[i] = NULL;
-		
-		for (j = 0; j < i; j++)
-		{
-			free(args[j]);
-		}
-		free(buf);
-		
-		if (args[0][0] == '/')
-		{
-			strcpy(cmd, args[0]);
-			if (access(cmd, X_OK) == 0)
-			{
-				exists = 1;
-			}
-		}
-		else
-		{
-			path = getenv("PATH");
-			path_token = strtok(path, ":");
-			while (path_token != NULL && exists == 0)
-			{
-				strcpy(cmd, path_token);
-				strcat(cmd, "/");
-				strcat(cmd, args[0]);
-				if (access(cmd, X_OK) == 0)
-				{
-					exists = 1;
-					args[0] = cmd;
-				}
-				path_token = strtok(NULL, ":");
-			}
-		}
-		if (exists == 0)
-		{
-			printf("./shell: No such file or directory\n");
-			continue;
-		}
-		pid = fork();
-		if (pid == 0)
-		{
-			if (execve(args[0], args, envp) == -1)
-			{
-				perror("execve");
-				exit(EXIT_FAILURE);
-			}
-		}
-		else if (pid == -1)
-		{
-			perror("fork");
-			return (1);
-		}
-		else
-		{
-			wait(&status);
-		}
+		free(input);
+		free(argv);
+		free(command);
 	}
 	return (0);
 }
