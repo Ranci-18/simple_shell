@@ -13,7 +13,7 @@
  */
 int main(void)
 {
-	char buf[BUFSIZE], *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE];
+	char buf[BUFSIZE], *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL };
 	pid_t pid;
 	int status, exists, i;
 
@@ -77,7 +77,7 @@ int main(void)
 		pid = fork();
 		if (pid == 0)
 		{
-			execvp(args[0], args);
+			execve(args[0], args, envp);
 			perror(args[0]);
 			exit(EXIT_FAILURE);
 		}
