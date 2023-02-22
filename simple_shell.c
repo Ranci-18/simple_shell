@@ -14,9 +14,10 @@
  */
 int main(void)
 {
-	char buf[BUFSIZE], *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL }, cwd[PATH_MAX];
+	char *buf = NULL, *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL }, cwd[PATH_MAX];
 	pid_t pid;
 	int status, exists, i;
+	size_t bufsize = 0;
 
 	setenv("PATH", "/bin:/usr/bin", 1);
 	while (1)
@@ -27,7 +28,7 @@ int main(void)
 			return (1);
 		}
 		printf(":) ");
-		if (fgets(buf, BUFSIZE, stdin) == NULL)
+		if (getline(&buf, &bufsize, stdin) == -1)
 		{
 			printf("\n");
 			return (0);
