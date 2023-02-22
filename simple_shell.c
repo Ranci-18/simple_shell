@@ -4,6 +4,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <string.h>
+#include <limits.h>
 #define BUFSIZE 100
 /**
  *main - emulates a simple shell
@@ -13,13 +14,18 @@
  */
 int main(void)
 {
-	char buf[BUFSIZE], *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL };
+	char buf[BUFSIZE], *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL }, cwd[PATH_MAX];
 	pid_t pid;
 	int status, exists, i;
 
 	setenv("PATH", "/bin:/usr/bin", 1);
 	while (1)
 	{
+		if (getcwd(cwd, sizeof(cwd)) == NULL)
+		{
+			perror("getcwd() error");
+			return (1);
+		}
 		printf(":) ");
 		if (fgets(buf, BUFSIZE, stdin) == NULL)
 		{
@@ -71,19 +77,21 @@ int main(void)
 		}
 		if (exists == 0)
 		{
-			printf("%s: command not found\n", args[0]);
+			printf("./shell: No such file or directory\n");
 			continue;
 		}
 		pid = fork();
 		if (pid == 0)
 		{
-			execve(args[0], args, envp);
-			perror(args[0]);
-			exit(EXIT_FAILURE);
+			if (execve(args[0], args, envp) == -1)
+			{
+				perror("execve");
+				exit(EXIT_FAILURE);
+			}
 		}
 		else if (pid == -1)
 		{
-			perror("Error:");
+			perror("fork");
 			return (1);
 		}
 		else
