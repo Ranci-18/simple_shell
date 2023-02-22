@@ -81,9 +81,10 @@ int main(void)
 			perror(args[0]);
 			exit(EXIT_FAILURE);
 		}
-		else if (pid < 0)
+		else if (pid == -1)
 		{
-			perror("Error");
+			perror("Error:");
+			return (1);
 		}
 		else
 		{
