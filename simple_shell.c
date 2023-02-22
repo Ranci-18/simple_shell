@@ -16,7 +16,7 @@ int main(void)
 {
 	char *buf = NULL, *token, *args[BUFSIZE], *path_token, *path, cmd[BUFSIZE], *envp[] = { NULL }, cwd[PATH_MAX];
 	pid_t pid;
-	int status, exists, i;
+	int status, exists, i, j;
 	size_t bufsize = 0;
 
 	setenv("PATH", "/bin:/usr/bin", 1);
@@ -45,11 +45,18 @@ int main(void)
 		i = 0;
 		while (token != NULL)
 		{
-			args[i] = token;
+			args[i] = malloc(strlen(token) + 1);
+			strcpy(args[i], token);
 			i++;
 			token = strtok(NULL, " \n");
 		}
 		args[i] = NULL;
+		
+		for (j = 0; j < i; j++)
+		{
+			free(args[j]);
+		}
+		free(buf);
 		
 		if (args[0][0] == '/')
 		{
