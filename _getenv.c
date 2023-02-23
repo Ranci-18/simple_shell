@@ -1,155 +1,242 @@
 #include "shell.h"
 
-/**
- * exitt - exits the shell with or without a return of status n
- * @arv: array of words of the entered line
- */
-void exitt(char **arv)
-{
-	int i, n;
+int status;
 
-	if (arv[1])
+/**
+ * _setenv - sets and environmental variable
+ * @name: name of the variable
+ * @value: value to set the variable to
+ *
+ * Return: 0 on success
+ */
+int _setenv(const char *name, const char *value)
+{
+	char **new_environ;
+	char *buffer;
+	char *buf_tmp;
+	char *element_ptr = get_array_element(environ, (char *) name);
+	int len;
+
+	if (value == NULL)
 	{
-		n = _atoi(arv[1]);
-		if (n <= -1)
-			n = 2;
-		freearv(arv);
-		exit(n);
+		write(STDERR_FILENO, "setenv: no value given\n", 23);
+		status = 2;
+		return (SKIP_FORK);
 	}
-	for (i = 0; arv[i]; i++)
-		free(arv[i]);
-	free(arv);
-	exit(0);
+
+	buffer = str_concat((char *)name, "=");
+	buf_tmp = str_concat(buffer, (char *)value);
+	free(buffer);
+	buffer = buf_tmp;
+
+	if (element_ptr == NULL)
+	{
+		len = list_len(environ, NULL);
+		new_environ = array_cpy(environ, len + 1);
+		new_environ[len - 1] = buffer;
+		new_environ[len] = NULL;
+		free_array(environ);
+		environ = new_environ;
+		return (SKIP_FORK);
+	}
+
+	len = list_len(environ, (char *)name);
+	free(environ[len]);
+	environ[len] = buffer;
+
+	status = 0;
+
+	return (SKIP_FORK);
 }
 
 /**
- * _atoi - converts a string into an integer
- *@s: pointer to a string
- *Return: the integer
+ * _unsetenv - deletes an environmental variable
+ * @name: name of variable
+ *
+ * Return: 0 if successful
  */
-int _atoi(char *s)
+int _unsetenv(const char *name)
 {
-	int i, integer, sign = 1;
+	char **env_ptr;
+	int len = list_len(environ, (char *)name);
 
-	i = 0;
-	integer = 0;
-	while (!((s[i] >= '0') && (s[i] <= '9')) && (s[i] != '\0'))
+	if (len == -1)
 	{
-		if (s[i] == '-')
-		{
-			sign = sign * (-1);
-		}
-		i++;
+		write(STDERR_FILENO, "unsetenv: variable not found\n", 29);
+		status = 2;
+		return (SKIP_FORK);
 	}
-	while ((s[i] >= '0') && (s[i] <= '9'))
+
+	env_ptr = environ + len;
+	free(*env_ptr);
+	while (*(env_ptr + 1) != NULL)
 	{
-		integer = (integer * 10) + (sign * (s[i] - '0'));
-		i++;
+		*env_ptr = *(env_ptr + 1);
+		env_ptr++;
 	}
-	return (integer);
+	*env_ptr = NULL;
+	status = 0;
+
+	return (SKIP_FORK);
 }
 
 /**
- * env - prints the current environment
- * @arv: array of arguments
+ * change_dir - changes the current working directory
+ * @name: name of directory to change to
+ *
+ * Return: 0 if successful
  */
-void env(char **arv __attribute__ ((unused)))
+int change_dir(char *name)
 {
-
+	char *home;
+	char *pwd;
+	char path_buffer[PATH_MAX];
+	size_t buf_size = PATH_MAX;
 	int i;
 
-	for (i = 0; environ[i]; i++)
+	getcwd(path_buffer, buf_size);
+
+	if (name == NULL || str_compare("~", name, PREFIX) == TRUE
+	    || str_compare("$HOME", name, MATCH) == TRUE)
 	{
-		_puts(environ[i]);
-		_puts("\n");
+		if (name != NULL && *name == '~' && *(name + 1) != '\0'
+		    && *(name + 1) != '/')
+		{
+			status = 2;
+			err_message("cd", name);
+			return (SKIP_FORK);
+		}
+
+		home = get_array_element(environ, "HOME");
+		if (home == NULL)
+		{
+			status = 2;
+			err_message("cd", name);
+			return (SKIP_FORK);
+		}
+
+		while (*home != '=')
+			home++;
+
+		home++;
+		i = chdir((const char *)home);
+		if (i != -1)
+			_setenv("PWD", (const char *)home);
+
+		if (name != NULL && str_compare("~/", name, PREFIX) == TRUE)
+			name += 2;
+	}
+	if (str_compare("-", name, MATCH) == TRUE)
+	{
+		pwd = get_array_element(environ, "OLDPWD");
+		if (pwd == NULL)
+			return (2);
+
+		while (*pwd != '=')
+		{
+			pwd++;
+		}
+		pwd++;
+
+		i = chdir((const char *)pwd);
+		if (i != -1)
+		{
+			write(STDOUT_FILENO, pwd, _strlen(pwd));
+			write(STDOUT_FILENO, "\n", 1);
+			_setenv("PWD", (const char *)pwd);
+		}
+	}
+	if (name != NULL && str_compare("~", name, MATCH) == FALSE
+	    && str_compare("$HOME", name, MATCH) == FALSE && i != -1
+	    && *name != '\0' && str_compare("-", name, MATCH) != TRUE)
+	{
+		i = chdir((const char *)name);
+		if (i != -1)
+			_setenv("PWD", (const char *)name);
+	}
+	if (i == -1)
+	{
+		status = 2;
+		err_message("cd", name);
+		return (SKIP_FORK);
 	}
 
+	status = 0;
+	_setenv("OLDPWD", (const char *)path_buffer);
+
+	return (SKIP_FORK);
 }
 
 /**
- * _setenv - Initialize a new environment variable, or modify an existing one
- * @arv: array of entered words
+ * alias_func - deals with command aliases
+ * @args: arguments from command line
+ * @to_free: indicated if aliases need to be freed (exiting shell);
+ *
+ * Return: TRUE if exiting, FALSE if the command is not "alias" or an alias,
+ * SKIP_FORK if success
  */
-void _setenv(char **arv)
+int alias_func(char **args, int to_free)
 {
-	int i, j, k;
+	static alias head = {NULL, NULL, NULL};
+	char *char_ptr;
+	int no_error = TRUE;
 
-	if (!arv[1] || !arv[2])
-	{
-		perror(_getenv("_"));
-		return;
-	}
+	if (to_free == TRUE)
+		return (free_aliases(head.next));
 
-	for (i = 0; environ[i]; i++)
+	if (str_compare("alias", *args, MATCH) != TRUE)
+		return (check_if_alias(args, head.next));
+
+	args++;
+
+	if (*args == NULL)
+		return (print_aliases(head.next));
+
+	while (*args != NULL)
 	{
-		j = 0;
-		if (arv[1][j] == environ[i][j])
+		char_ptr = *args;
+		while (*char_ptr != '\0' && *char_ptr != '=')
+			char_ptr++;
+
+		if (*char_ptr == '\0' || char_ptr == *args)
 		{
-			while (arv[1][j])
-			{
-				if (arv[1][j] != environ[i][j])
-					break;
-
-				j++;
-			}
-			if (arv[1][j] == '\0')
-			{
-				k = 0;
-				while (arv[2][k])
-				{
-					environ[i][j + 1 + k] = arv[2][k];
-					k++;
-				}
-				environ[i][j + 1 + k] = '\0';
-				return;
-			}
+			if (print_alias_value(*args, &head) == FALSE)
+				no_error = FALSE;
 		}
+		else
+		{
+			*char_ptr = '\0';
+			char_ptr++;
+			set_alias_value(*args, &head, char_ptr);
+			*(char_ptr - 1) = '=';
+		}
+		args++;
 	}
-	if (!environ[i])
-	{
 
-		environ[i] = concat_all(arv[1], "=", arv[2]);
-		environ[i + 1] = '\0';
+	if (no_error == FALSE)
+		return (SKIP_FORK);
 
-	}
+	status = 0;
+	return (SKIP_FORK);
 }
 
 /**
- * _unsetenv - Remove an environment variable
- * @arv: array of entered words
+ * print_env - prints the environment
+ *
+ * Return: TRUE
  */
-void _unsetenv(char **arv)
+int print_env(void)
 {
-	int i, j;
+	char **ptr = environ;
 
-	if (!arv[1])
+	while (*ptr != NULL)
 	{
-		perror(_getenv("_"));
-		return;
+		write(STDOUT_FILENO, *ptr, _strlen(*ptr));
+		write(STDOUT_FILENO, "\n", 1);
+		ptr++;
 	}
-	for (i = 0; environ[i]; i++)
-	{
-		j = 0;
-		if (arv[1][j] == environ[i][j])
-		{
-			while (arv[1][j])
-			{
-				if (arv[1][j] != environ[i][j])
-					break;
 
-				j++;
-			}
-			if (arv[1][j] == '\0')
-			{
-				free(environ[i]);
-				environ[i] = environ[i + 1];
-				while (environ[i])
-				{
-					environ[i] = environ[i + 1];
-					i++;
-				}
-				return;
-			}
-		}
-	}
+	status = 0;
+
+	return (SKIP_FORK);
 }
